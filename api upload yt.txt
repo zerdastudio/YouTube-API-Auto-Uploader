@@ -1,0 +1,90 @@
+import os
+import google_auth_oauthlib.flow
+import googleapiclient.discovery
+import googleapiclient.errors
+from googleapiclient.http import MediaFileUpload
+
+# ==========================================
+# CONFIGURAZIONE API YOUTUBE
+# ==========================================
+CLIENT_SECRETS_FILE = "client_secrets.json"
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+API_SERVICE_NAME = "youtube"
+API_VERSION = "v3"
+
+def get_authenticated_service():
+    flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, SCOPES)
+    credentials = flow.run_local_server()
+    return googleapiclient.discovery.build(
+        API_SERVICE_NAME, API_VERSION, credentials=credentials)
+
+def upload_video(youtube, file_path, title, description, tags, publish_at, category_id="27"):
+    body = {
+        'snippet': {
+            'title': title,
+            'description': description,
+            'tags': tags,
+            'categoryId': category_id,          # 27 = Istruzione (Education)
+            'defaultLanguage': 'en',            # Forza lingua Inglese
+            'defaultAudioLanguage': 'en'        # Forza audio in Inglese
+        },
+        'status': {
+            'privacyStatus': 'private',         # Richiesto per la programmazione
+            'publishAt': publish_at,            # Data di uscita (Formato UTC ISO 8601)
+            'selfDeclaredMadeForKids': False,
+        }
+    }
+
+    media = MediaFileUpload(file_path, chunksize=-1, resumable=True)
+    
+    print(f"Caricamento e programmazione in corso: {title}...")
+    request = youtube.videos().insert(
+        part="snippet,status",
+        body=body,
+        media_body=media
+    )
+    
+    response = None
+    while response is None:
+        status, response = request.next_chunk()
+        if status:
+            print(f"Caricato il {int(status.progress() * 100)}%")
+    
+    print(f"Video caricato e programmato con successo! ID: {response['id']}")
+
+# ==========================================
+# METADATI VIDEO (DA COMPILARE)
+# ==========================================
+videos_to_upload = [
+    {
+        "file": "INSERISCI_NOME_FILE_1.mp4",
+        "title": "INSERISCI_TITOLO_1",
+        "desc": """INSERISCI_DESCRIZIONE_1 (Usa gli a capo normalmente)
+        
+#Hashtag1 #Hashtag2""",
+        "tags": ["tag1", "tag2", "tag3"],
+        "publish_at": "YYYY-MM-DDThh:mm:ss.000Z" # Es: "2026-05-21T15:00:00.000Z"
+    },
+    {
+        "file": "INSERISCI_NOME_FILE_2.mp4",
+        "title": "INSERISCI_TITOLO_2",
+        "desc": """INSERISCI_DESCRIZIONE_2 (Usa gli a capo normalmente)
+        
+#Hashtag1 #Hashtag2""",
+        "tags": ["tag1", "tag2", "tag3"],
+        "publish_at": "YYYY-MM-DDThh:mm:ss.000Z" 
+    }
+    # Puoi aggiungere altri blocchi copiando e incollando le parentesi graffe
+]
+
+# ==========================================
+# ESECUZIONE DELLO SCRIPT
+# ==========================================
+if __name__ == "__main__":
+    youtube = get_authenticated_service()
+    for vid in videos_to_upload:
+        try:
+            upload_video(youtube, vid["file"], vid["title"], vid["desc"], vid["tags"], vid["publish_at"])
+        except Exception as e:
+            print(f"Errore durante l'upload di '{vid['file']}': {e}")
